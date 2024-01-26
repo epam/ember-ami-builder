@@ -1,0 +1,94 @@
+- name: Install development tools
+  package:
+    name: "{{ item }}"
+    state: installed
+  loop: "{{ build_packages }}"
+
+- name: Calculate kernel branch name for Amazon Linux 2
+  set_fact:
+    branch_name: "amazon-{{ ansible_kernel | regex_replace('^(?P<ver>\\d+.\\d+.)(?P<build>.*)', '\\g<ver>y/master') }}"
+  when: ansible_facts["distribution_major_version"] == "2"
+
+- name: Calculate kernel branch name for Amazon Linux 2023
+  set_fact:
+    branch_name: "amazon-{{ ansible_kernel | regex_replace('^(?P<ver>\\d+.\\d+.)(?P<build>.*)', '\\g<ver>y/mainline') }}" 
+  when: ansible_facts["distribution_major_version"] == "2023"
+
+- name: Clone source code for the current kernel
+  git:
+    repo: "https://github.com/amazonlinux/linux.git"
+    version: "{{ branch_name }}"
+    dest: "{{ build_dir }}"
+    depth: 1
+
+- name: Copy current config to the build dir
+  copy:
+    src: "/boot/config-{{ ansible_kernel }}"
+    dest: "{{ build_dir }}/.config"
+  
+- name: Enable full tickless mode
+  lineinfile:
+    path: "{{ build_dir }}/.config"
+    regexp: "^#\ CONFIG_NO_HZ_FULL.*$"
+    line: "CONFIG_NO_HZ_FULL=y"
+
+- name: Disable idle tickless mode
+  lineinfile:
+    path: "{{ build_dir }}/.config"
+    regexp: "^CONFIG_NO_HZ_IDLE"
+    line: "# CONFIG_NO_HZ_IDLE is not set" 
+
+- name: Verify and fix the new config
+  shell:
+    cmd: "yes \"\" | make oldconfig"
+    chdir: "{{ build_dir }}"
+
+- name: Build a new kernel
+  shell:
+    cmd: "make -j {{ ansible_processor_vcpus }}"
+    chdir: "{{ build_dir }}"
+
+- name: Install modules
+  shell:
+    cmd: "make modules_install"
+    chdir: "{{ build_dir }}"
+
+- name: Get full version of the new kernel
+  shell:
+    cmd: "make kernelversion"
+    chdir: "{{ build_dir }}"
+  register: kernel_version
+
+- name: Install kernel config
+  copy:
+    src: "{{ build_dir }}/.config"
+    dest: "/boot/config-{{ kernel_version.stdout }}-{{ kernel_prefix }}"
+
+- name: Install built kernel
+  copy:
+    src: "{{ build_dir }}/arch/{{ ansible_machine }}/boot/bzImage"
+    dest: "/boot/vmlinuz-{{ kernel_version.stdout }}-{{ kernel_prefix }}"
+
+- name: Generate initramfs
+  shell:
+    cmd: "dracut --hostonly --kver {{ kernel_version.stdout }}"
+    chdir: "{{ build_dir }}"
+
+- name: Add built kernel to GRUB
+  shell:
+    cmd: "grubby --grub2 --add-kernel=/boot/vmlinuz-{{ kernel_version.stdout }}-{{ kernel_prefix }} --title=\"Amazon Linux Tickless\" --initrd=/boot/initramfs-{{ kernel_version.stdout }}.img --copy-default"
+
+- name: Set build kernel as default
+  shell:
+    cmd: "grubby --set-default=/boot/vmlinuz-{{ kernel_version.stdout }}-{{ kernel_prefix }}"
+
+- name: Remove development tools
+  package:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ build_packages }}"
+  
+- name: Remove kernel source
+  file:
+    path: "{{ build_dir }}"
+    state: absent

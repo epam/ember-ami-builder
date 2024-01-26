@@ -1,0 +1,148 @@
+# This Ansible playbook is used for preparing base AMI for Ember testing  
+# and is intended to be executed by AWS EC2 Image Builder.
+#
+# Supported base OS are Amazon Linux 2/2023 and RockyLinux. 
+# RHEL and its other derivates are probably supported, but not tested.
+
+- name: AMI preparation
+  hosts: 127.0.0.1
+  gather_facts: true
+  connection: local
+  become: true
+  vars:
+    kernel_boot_params: "transparent_hugepage=never intel_pstate=disable intel_idle.max_cstate=0 processor.max_cstate=0 mce=ignore_ce nosoftlockup=0 audit=0 idle=poll nmi_watchdog=0 mitigations=off isolcpus=10-23,34-47 nohz_full=10-23,34-47 rcu_nocbs=10-23,34-47 selinux=0"
+  tasks:
+    - name: Re-build kernel for Amazon Linux 2/2023
+      include_tasks: kernel.yml
+      vars:
+        build_dir: "/tmp/linux"
+        kernel_prefix: "tickless"
+        build_packages:
+          - "@Development tools"
+          - "ncurses-devel"
+          - "bison"
+          - "flex"
+          - "elfutils-libelf-devel"
+          - "openssl-devel"
+          - "dwarves"
+      when: ansible_facts["distribution"] == "Amazon"
+
+    - name: Add Docker repo for Rocky Linux
+      yum_repository:
+        name: Docker
+        description: Docker CE repo
+        baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
+      when: ansible_facts["distribution"] == "Rocky"
+
+    - name: Install Docker (Amazon Linux)
+      package:
+        name: docker
+        state: installed
+      when: ansible_facts["distribution"] == "Amazon"
+
+    - name: Install Docker (Rocky Linux)
+      dnf:
+        name: "{{ item }}"
+        state: installed
+        disable_gpg_check: true
+      loop:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+      when: ansible_facts["distribution"] == "Rocky"
+
+    - name: Enable Docker service
+      service:
+        name: docker
+        enabled: true
+
+    # It's hard to get default non-root user when running under AWS Image Builder
+    - name: Add ec2-user user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+      when: ansible_facts["distribution"] == "Amazon"
+
+    - name: Add rocky user to docker group
+      user:
+        name: rocky
+        groups: docker
+        append: yes
+      when: ansible_facts["distribution"] == "Rocky"
+
+    - name: Install tuned
+      package:
+        name: tuned
+        state: installed
+      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2") or 
+            (ansible_facts["distribution"] == "Rocky")
+
+    # Amazon Linux 2023 doesn't have tuned package at the time of writing 
+    - name: Install tuned (Amazon Linux 2023)
+      dnf:
+        name: 'https://kojipkgs.fedoraproject.org//packages/tuned/2.18.0/2.fc34/noarch/tuned-2.18.0-2.fc34.noarch.rpm'
+        state: installed
+        disable_gpg_check: true
+      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2023")
+
+    - name: Enable tuned service
+      service:
+        name: tuned
+        enabled: true
+        state: started
+
+    - name: Set tuned profile
+      command: "tuned-adm --async profile latency-performance"
+
+    - name: Disable unused services (Amazon Linux 2)
+      service:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - auditd
+        - rngd
+        - mdmonitor
+        - dmraid-activation
+        - lvm2-monitor
+        - postfix
+      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2")
+
+    - name: Disable unused services (Amazon Linux 2023)
+      service:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - auditd
+        - rngd
+        - selinux-autorelabel-mark
+        - sssd
+        - sssd-kcm
+      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2023")
+
+    - name: Disable unused services (Rocky Linux)
+      service:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - auditd
+        - rngd
+        - selinux-autorelabel-mark
+        - sssd
+        - sssd-kcm
+        - mdmonitor
+      when: (ansible_facts["distribution"] == "Rocky")
+
+    - name: Set kernel parameters via sysctl
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        sysctl_file: "/etc/sysctl.d/01-ember.conf"
+      loop:
+        - { name: 'net.core.rmem_max', value: '2097152' }
+        - { name: 'net.core.wmem_max', value: '2097152' }
+        - { name: 'vm.stat_interval', value: '3600' }
+        - { name: 'vm.mmap_min_addr', value: '4096' }
+
+    - name: Add boot kernel parameters
+      command: "grubby --update-kernel=ALL --args=\"{{ kernel_boot_params }}\""
