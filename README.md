@@ -7,6 +7,12 @@ Supported target OS are:
  - Amazon Linux 2023
  - Rocky Linux 9
 
+What will the playbook do:
+ - Rebuild and install current kernel with CONFIG_NO_HZ_FULL parameter (Amazon Linux only);
+ - Set boot parameters to disable certain C-states, isolate particular CPU cores from the scheduler and disable particular security features which may bring additional latency (like auditing, selinux and mitigations);
+ - Disable unused system services;
+ - Set proper tuned profile. 
+
 ## Usage 
 
 The playbook might be used for manual local execution, as well as for automated image building with the tools like AWS Image Builder or Hashicorp Packer. Target host should have Ansible 2.9+ installed. 
