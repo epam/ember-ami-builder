@@ -27,12 +27,13 @@
           - "dwarves"
       when: ansible_facts["distribution"] == "Amazon"
 
-    - name: Add Docker repo for Rocky Linux
+    - name: Add Docker repo for Rocky Linux / RHEL
       yum_repository:
         name: Docker
         description: Docker CE repo
         baseurl: https://download.docker.com/linux/centos/$releasever/$basearch/stable
-      when: ansible_facts["distribution"] == "Rocky"
+      when: (ansible_facts["distribution"] == "Rocky") or 
+            (ansible_facts["distribution"] == "RedHat")
 
     - name: Install Docker (Amazon Linux)
       package:
@@ -40,7 +41,7 @@
         state: installed
       when: ansible_facts["distribution"] == "Amazon"
 
-    - name: Install Docker (Rocky Linux)
+    - name: Install Docker (Rocky Linux / RHEL)
       dnf:
         name: "{{ item }}"
         state: installed
@@ -49,7 +50,8 @@
         - docker-ce
         - docker-ce-cli
         - containerd.io
-      when: ansible_facts["distribution"] == "Rocky"
+      when: (ansible_facts["distribution"] == "Rocky") or
+            (ansible_facts["distribution"] == "RedHat")
 
     - name: Enable Docker service
       service:
@@ -62,7 +64,8 @@
         name: ec2-user
         groups: docker
         append: yes
-      when: ansible_facts["distribution"] == "Amazon"
+      when: (ansible_facts["distribution"] == "Amazon") or
+            (ansible_facts["distribution"] == "RedHat")
 
     - name: Add rocky user to docker group
       user:
@@ -76,7 +79,8 @@
         name: tuned
         state: installed
       when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2") or 
-            (ansible_facts["distribution"] == "Rocky")
+            (ansible_facts["distribution"] == "Rocky") or
+            (ansible_facts["distribution"] == "RedHat")
 
     # Amazon Linux 2023 doesn't have tuned package at the time of writing 
     - name: Install tuned (Amazon Linux 2023)
@@ -132,6 +136,17 @@
         - sssd-kcm
         - mdmonitor
       when: (ansible_facts["distribution"] == "Rocky")
+
+    - name: Disable unused services (RHEL)
+      service:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - auditd
+        - selinux-autorelabel-mark
+        - sssd
+        - sssd-kcm
+      when: (ansible_facts["distribution"] == "RedHat")
 
     - name: Set kernel parameters via sysctl
       sysctl:

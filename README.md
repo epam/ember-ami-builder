@@ -6,6 +6,7 @@ Supported target OS are:
  - Amazon Linux 2
  - Amazon Linux 2023
  - Rocky Linux 9
+ - RHEL 8
 
 What will the playbook do:
  - Rebuild and install current kernel with CONFIG_NO_HZ_FULL parameter (Amazon Linux only);
