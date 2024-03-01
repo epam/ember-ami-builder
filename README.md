@@ -20,7 +20,7 @@ The playbook might be used for manual local execution, as well as for automated 
 
 To run the playbook use the following command:
 ```bash
-ansbile-playbook main.yml
+ansible-playbook main.yml
 ```
 
 **Note:** the playbook configures CPU cores isolation. The default values are optimized for c6i.12xlarge instance type and might be not suitable for your setup. This might be overridden by passing your own values via ```kernel_boot_params``` variable:
