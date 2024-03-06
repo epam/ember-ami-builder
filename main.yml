@@ -146,6 +146,24 @@
         - selinux-autorelabel-mark
         - sssd
         - sssd-kcm
+        - firewalld
+        - atd
+        - lvm2-monitor
+        - mdmonitor
+        - dbus-org.freedesktop.nm-dispatcher
+        - import-state
+        - kdump
+        - NetworkManager-dispatcher
+        - NetworkManager-wait-online
+        - nis-domainname
+        - vdo
+        - multipathd
+        - iscsi
+        - iscsi-onboot
+        - nvmefc-boot-connections
+        - dbus-org.freedesktop.timedate1
+        - timedatex
+        - loadmodules
       when: (ansible_facts["distribution"] == "RedHat")
 
     - name: Set kernel parameters via sysctl

@@ -23,8 +23,17 @@ To run the playbook use the following command:
 ansible-playbook main.yml
 ```
 
-**Note:** the playbook configures CPU cores isolation. The default values are optimized for c6i.12xlarge instance type and might be not suitable for your setup. This might be overridden by passing your own values via ```kernel_boot_params``` variable:
+### Important notes
+
+1. The playbook configures CPU cores isolation. The default values are optimized for c6i.12xlarge instance type and might be not suitable for your setup. This might be overridden by passing your own values via ```kernel_boot_params``` variable:
 
 ```bash
 ansible-playbook main.yml -e kernel_boot_params=YOUR_BOOT_PARAMETERS_HERE
 ```
+
+2. If you're running RHEL, make sure that you have *ansible* packages installed (if available) or install *ansible.posix* collection manually:
+```bash
+ansible-galaxy collection install ansible.posix
+```
+
+3. The playbook disables unused services. The definition of *unused* may vary for different deployments. Please make sure, that any important services are not being disabled. 
