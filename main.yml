@@ -78,18 +78,7 @@
       package:
         name: tuned
         state: installed
-      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2") or 
-            (ansible_facts["distribution"] == "Rocky") or
-            (ansible_facts["distribution"] == "RedHat")
-
-    # Amazon Linux 2023 doesn't have tuned package at the time of writing 
-    - name: Install tuned (Amazon Linux 2023)
-      dnf:
-        name: 'https://kojipkgs.fedoraproject.org//packages/tuned/2.18.0/2.fc34/noarch/tuned-2.18.0-2.fc34.noarch.rpm'
-        state: installed
-        disable_gpg_check: true
-      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2023")
-
+    
     - name: Enable tuned service
       service:
         name: tuned
