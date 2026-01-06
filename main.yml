@@ -12,7 +12,7 @@
   vars:
     kernel_boot_params: "transparent_hugepage=never intel_pstate=disable intel_idle.max_cstate=0 processor.max_cstate=0 mce=ignore_ce nosoftlockup=0 audit=0 idle=poll nmi_watchdog=0 mitigations=off isolcpus=10-23,34-47 nohz_full=10-23,34-47 rcu_nocbs=10-23,34-47 selinux=0"
   tasks:
-    - name: Re-build kernel for Amazon Linux 2/2023
+    - name: Re-build kernel for Amazon Linux 2
       include_tasks: kernel.yml
       vars:
         build_dir: "/tmp/linux"
@@ -25,7 +25,7 @@
           - "elfutils-libelf-devel"
           - "openssl-devel"
           - "dwarves"
-      when: ansible_facts["distribution"] == "Amazon"
+      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2")
 
     - name: Add Docker repo for Rocky Linux / RHEL
       yum_repository:
@@ -78,18 +78,7 @@
       package:
         name: tuned
         state: installed
-      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2") or 
-            (ansible_facts["distribution"] == "Rocky") or
-            (ansible_facts["distribution"] == "RedHat")
-
-    # Amazon Linux 2023 doesn't have tuned package at the time of writing 
-    - name: Install tuned (Amazon Linux 2023)
-      dnf:
-        name: 'https://kojipkgs.fedoraproject.org//packages/tuned/2.18.0/2.fc34/noarch/tuned-2.18.0-2.fc34.noarch.rpm'
-        state: installed
-        disable_gpg_check: true
-      when: (ansible_facts["distribution"] == "Amazon" and ansible_facts["distribution_version"] == "2023")
-
+    
     - name: Enable tuned service
       service:
         name: tuned
